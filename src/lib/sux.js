@@ -5,7 +5,8 @@ sux = {}
 
 sux.currentProgram = null
 sux.lastClosedProgram = null
-
+sux.refreshEnd = null
+sux.currentFold = null
 
 var node = 0
 
@@ -28,25 +29,82 @@ class Operation {
 	assignInput(op) {
 
 		this.inputOps.push(op)
+		this.inputs.push(false)
 		this.nInputs = this.nInputs + 1
 	}
 	assignParent(parent) {
 		this.parent = parent
 	}
 	notifyResult(op) {
-
-		this.inputs.push(op.result)
+		console.log( "   >>> notifyResult on " + this.name)
+		for (var i = 0; i < this.inputOps.length; ++i) {
+			if(this.inputOps[i] == op) {
+				console.log( "   >>> updating input " + i + " with " + op.result)
+				this.inputs[i] = op.result
+				break;
+			}
+		}
 		//console.log(" program  " + this.name + " received result " + op.result)
-		if(this.inputs.length == this.nFixedInputs) this.execute()
+		if(sux.refreshEnd != null || (this.inputs.length == this.nFixedInputs)) {
+			if(this != sux.refreshEnd) {
+				console.log("  >>> executing on notify")
+				this.execute()
+			}
+			else {
+				console.log("  >>> notify exec prevcented")
+				sux.refreshEnd = null
+			}
+		}
+		else {
+			console.log( "  >>> execute on " + this.name + " prevented")
+		}
 
 	}
 	execute() {
-		this.status = 'close'
+	
+	}
+	refresh() {
+		console.log ("   $$$$$$ refreshing " + this.name + " with input:   " + this.inputOps.length)
+		for(var i = 0; i < this.inputOps.length; ++i) {
+			this.inputOps[i].status = 'open'
+			this.inputOps[i].refresh()
+		}
+		if(this.inputOps.length == 0) this.execute()
+		//this.execute()
 	}
 	close() {
 		if(this.status == 'open') {
+			//console.log("  ########## executing and closing " + this.name)
+			this.status = 'closed'
 			this.execute()
 		}
+	}
+}
+
+class Accumulator extends Operation {
+	constructor(parent) {
+		super(parent)
+		this.name = 'Accum'+(node++)
+		this.foldOp = sux.currentFold
+		console.log("Creating accum ~ fold: " + this.foldOp.name)
+	}
+	execute() {
+		
+		this.result = this.foldOp.accumulator
+		console.log("  EXEC accum : " + JSON.stringify(this.result) + ", notifying parent: " + this.parent.name)
+		this.parent.notifyResult(this)
+	}
+}
+
+class Next extends Operation {
+	constructor(parent) {
+		super(parent)
+		this.name = 'Next'+(node++)		
+		this.foldOp = sux.currentFold
+	}
+	execute() {
+		this.result = this.foldOp.next
+		this.parent.notifyResult(this)
 	}
 }
 
@@ -88,12 +146,34 @@ class Program extends Operation {
 class Fold extends Operation {
 	constructor(parent) {
 		super(parent)
-		this.name = 'fold'
+		this.name = 'fold'+(node++)
 		this.accumulator = 0
+		this.next = 0
 		this.newInput = 0
 		this.nFixedInputs = 2
+		sux.currentFold = this
 	}
-	
+	execute() {
+		console.log("executing fold with inputs[0]: " + this.inputs[0])
+		// we have inputs[0] (list) and inputs[1] (function to evaluate)
+		if(typeof(this.inputs[0]) == 'number' || this.inputs[0].length < 2) {
+			this.result = this.inputs[0]
+		}
+		else {
+			this.accumulator = this.inputs[0][0]
+			for (var i = 1; i < this.inputs[0].length; ++i) {
+				console.log("  >>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
+				this.next = this.inputs[0][i]
+				sux.refreshEnd = this
+				this.inputOps[1].refresh()
+				this.accumulator = this.inputs[1]	
+			}
+		}
+		this.result = this.accumulator
+		this.status = 'close'
+		this.parent.notifyResult(this)
+		this.status = 'close'
+	}
 }
 
 sux.appendOnesToList = function(list, ones) {
@@ -123,6 +203,8 @@ sux.suc = function(list) {
 		return [1]
 	}
 
+	if(typeof(list) == 'number') return list+1
+
 	if(list.length == 0) {
 		return [1]
 	}
@@ -151,7 +233,7 @@ sux.climbUpToNextOperationWithArguments = function() {
 	}
 	// i have to stop when currentProgram.nFixedInputs == -1 or sux.currentProgram.inputs.length < nFixedInputs13,	
 	while(
-		(sux.currentProgram.nFixedInputs != -1)
+		(sux.currentProgram.nFixedInputs == 1)
 
 		//&&
 
@@ -161,6 +243,7 @@ sux.climbUpToNextOperationWithArguments = function() {
 		sux.currentProgram = sux.currentProgram.parent
 	}
 //	console.log("       && up operation fetched " + sux.currentProgram.name + " with nFixedInputs : " + sux.currentProgram.nFixedInputs)
+	if(sux.currentProgram.name == 'fold') sux.currentFold = sux.currentProgram
 	return sux.currentProgram
 
 }
@@ -168,7 +251,7 @@ sux.climbUpToNextOperationWithArguments = function() {
 class Ones extends Operation {
 	constructor(parent) {
 		super(parent)
-		this.namne = 'ones'+(node++)
+		this.name = 'ones'+(node++)
 	}
 	execute() {
 		//console.log(" ## EXEC ones")
@@ -186,31 +269,11 @@ class Suc extends Operation {
 	execute() {
 		//console.log(" ## EXEC suc")
 		this.result = sux.suc(this.inputs[0])
+		console.log(" EXEC " + this.name + "  input: " + this.inputs[0] + " result= " + this.result)
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
 }
-/*
-class Constant extends Operation {
-	
-}
-
-class Concat extends Operation {
-	constructor(parent) {
-		
-	}
-}
-
-
-sux.parseList = function(list) {
-	return eval(list)
-}
-*/
-
-
-// interpret: osss
-// outputs: [1, 1, 1]
-
 
 sux.interpret = function(input, code) {
 
@@ -254,11 +317,28 @@ sux.interpret = function(input, code) {
                         //console.log("  ... " + sux.currentProgram.name )
 			sux.currentProgram.close()
 		}
+		else if (code[i] == '1') {
+			var accum = new Accumulator(sux.currentProgram)
+			sux.currentProgram.assignInput(accum)
+			sux.currentProgram = accum
+			sux.currentProgram.close() // finishes immediately				
+		}
+		else if (code[i] == '2') {
+			var next = new Next(sux.currentProgram)
+			sux.currentProgram.assignInput(next)
+			sux.currentProgram = next
+			sux.currentProgram.close() // finishes immediately
+		}
+		else if (code[i] == 'f') {
+			var fold = new Fold(sux.currentProgram)
+			sux.currentProgram.assignInput(fold)
+			sux.currentProgram = fold
+		}
 		++i
 	}
 	if(sux.currentProgram.status == 'open')
 	{
-		sux.currentProgram.execute()
+		sux.currentProgram.close()
 	}	
 	program.close()
 
@@ -266,6 +346,11 @@ sux.interpret = function(input, code) {
 
 //sux.interpret("", "sosss....")
 //sux.interpret("", "s[ss,[sss,[ss,sssssssss]],ssss]")
-sux.interpret("", "osss")
+//sux.interpret("", "osss")
+
+//sux.interpret("", "f[sss,ssss,sssss],f[1,o2],s1.....")
+sux.interpret("", "f[ssss,osss],s1")
+
+//console.log(sux.suc([1]))
 
 module.exports = sux
