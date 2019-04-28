@@ -89,8 +89,11 @@ class Fold extends Operation {
 	constructor(parent) {
 		super(parent)
 		this.name = 'fold'
+		this.accumulator = 0
+		this.newInput = 0
 		this.nFixedInputs = 2
 	}
+	
 }
 
 sux.appendOnesToList = function(list, ones) {
@@ -253,15 +256,16 @@ sux.interpret = function(input, code) {
 		}
 		++i
 	}
-	//if(sux.currentProgram.status == 'open')
-	//{
-	//	sux.currentProgram.execute()
-	//}
-	//program.close()
+	if(sux.currentProgram.status == 'open')
+	{
+		sux.currentProgram.execute()
+	}	
+	program.close()
 
 }
 
 //sux.interpret("", "sosss....")
-sux.interpret("", "[s,[s,s],s]")
+//sux.interpret("", "s[ss,[sss,[ss,sssssssss]],ssss]")
+sux.interpret("", "osss")
 
 module.exports = sux
