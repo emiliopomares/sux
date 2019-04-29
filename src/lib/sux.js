@@ -3,12 +3,46 @@
 
 sux = {}
 
+class Stack {
+	constructor()
+	{
+		this.data = []
+	}
+	push(d)
+	{
+		this.data.push(d)
+	}
+	pop()
+	{
+		if(this.data.length > 0) return this.data.pop()
+	}
+	peek()
+	{
+		if(this.data.length > 0) return this.data[this.data.length-1]
+		else return null
+	}
+	
+}
+
 sux.currentProgram = null
 sux.lastClosedProgram = null
-sux.refreshEnd = null
+sux.refreshEnd = new Stack()
 sux.currentFold = null
 
 var node = 0
+
+function wasteTime()
+{
+	for(var a = 0; a < 1000000; ++a) {
+		for(var b = 0; b < 2000; ++b) {
+			var c = a*b
+		}
+	}
+}
+
+var IND = 0
+
+
 
 class Operation {
 	constructor(parent) {
@@ -27,36 +61,40 @@ class Operation {
 		this.name = ''
 	}	
 	assignInput(op) {
-
+		//console.log(this.name + " <- " + op.name + " @ input: "+this.inputOps.length)
 		this.inputOps.push(op)
+		if(this.name.startsWith('fold')) sux.currentFold = this
 		this.inputs.push(false)
 		this.nInputs = this.nInputs + 1
 	}
 	assignParent(parent) {
 		this.parent = parent
 	}
+	
 	notifyResult(op) {
-		console.log( "   >>> notifyResult on " + this.name)
+		IND++
+		if(IND==40) process.exit(0)
 		for (var i = 0; i < this.inputOps.length; ++i) {
 			if(this.inputOps[i] == op) {
-				console.log( "   >>> updating input " + i + " with " + op.result)
+				//console.log( "   >>> updating input " + i + " with " + op.result)
 				this.inputs[i] = op.result
 				break;
 			}
 		}
-		//console.log(" program  " + this.name + " received result " + op.result)
-		if(sux.refreshEnd != null || (this.inputs.length == this.nFixedInputs)) {
-			if(this != sux.refreshEnd) {
-				console.log("  >>> executing on notify")
+		var rn = sux.refreshEnd.peek() == null ? "(null)" : sux.refreshEnd.peek().name
+		console.log(" >>>>>>>>>>>>>>>> operation  " + this.name + " received result " + op.result + " from " + op.name + "(refreshend="+rn+")")
+		if(sux.refreshEnd.peek() != null || (this.inputs.length == this.nFixedInputs)) {
+			if(this != sux.refreshEnd.peek()) {
+				//console.log("  >>> executing on notify")
 				this.execute()
 			}
 			else {
-				console.log("  >>> notify exec prevcented")
-				sux.refreshEnd = null
+				console.log("  >>> notify exec prevcented on " + this.name)
+				sux.refreshEnd.pop()
 			}
 		}
 		else {
-			console.log( "  >>> execute on " + this.name + " prevented")
+			//console.log( "  >>> execute on " + this.name + " prevented")
 		}
 
 	}
@@ -73,7 +111,18 @@ class Operation {
 		//this.execute()
 	}
 	close() {
+		if(this.name == 'Accum21') {
+			//console.log("  ............ starting close Accum21")
+			//wasteTime()
+
+		}
 		if(this.status == 'open') {
+			if(this.name == 'Accum21') {
+				//console.log("  ............ status was open, so we close and execute...")
+				//wasteTime()
+	
+			}
+			
 			//console.log("  ########## executing and closing " + this.name)
 			this.status = 'closed'
 			this.execute()
@@ -86,12 +135,16 @@ class Accumulator extends Operation {
 		super(parent)
 		this.name = 'Accum'+(node++)
 		this.foldOp = sux.currentFold
-		console.log("Creating accum ~ fold: " + this.foldOp.name)
+		//console.log("Creating accum ~ fold: " + this.foldOp.name)
 	}
 	execute() {
-		
 		this.result = this.foldOp.accumulator
-		console.log("  EXEC accum : " + JSON.stringify(this.result) + ", notifying parent: " + this.parent.name)
+		//console.log("  EXEC "+ this.name + ": " + JSON.stringify(this.result) + ", notifying parent: " + this.parent.name)
+		if(this.name == 'Accum21') {
+			
+			//wasteTime()
+
+		}
 		this.parent.notifyResult(this)
 	}
 }
@@ -117,10 +170,25 @@ class List extends Operation {
 	execute() {
 		var res = []
 		//console.log(" ## EXEC List  >> List inputs length: " + this.inputs.length)
-		this.inputs.forEach(function(r) {
-			if((r.length == 1) && typeof(r[0]) == 'number') res.push(r[0])
-			else res.push(r)
-		})
+		for(var i = 0; i < this.inputs.length; ++i) {
+			if((this.inputs[i].length == 1) && typeof(this.inputs[i][0] == 'number')) {
+				res.push(this.inputs[i][0])
+			}
+			else {
+				if(this.inputOps[i].name.startsWith('ones')) {
+					for(var j = 0; j < this.inputs[i].length; ++j) {
+						res.push(this.inputs[i][j])
+					}
+				}
+				else {
+					res.push(this.inputs[i])
+				}
+			}
+		}
+		//this.inputs.forEach(function(r) {
+		//	if((r.length == 1) && typeof(r[0]) == 'number') res.push(r[0])
+		//	else res.push(r)
+		//})
 		this.result = res
 		//console.log("  >> List finish op, result : " + res)
 		this.parent.notifyResult(this)
@@ -137,9 +205,8 @@ class Program extends Operation {
 	execute() {
 		//console.log("  ## Exec program")
 		this.result = this.inputs[0]
-		console.log(this.result)
+		console.log(this.result) // DO NOT COMMENT THIS!!!!!
 		this.status = 'close'
-		process.exit(0)
 	}
 }
 
@@ -151,10 +218,9 @@ class Fold extends Operation {
 		this.next = 0
 		this.newInput = 0
 		this.nFixedInputs = 2
-		sux.currentFold = this
 	}
 	execute() {
-		console.log("executing fold with inputs[0]: " + this.inputs[0])
+		console.log("executing "+ this.name + " with inputs[0]: " + this.inputs[0])
 		// we have inputs[0] (list) and inputs[1] (function to evaluate)
 		if(typeof(this.inputs[0]) == 'number' || this.inputs[0].length < 2) {
 			this.result = this.inputs[0]
@@ -162,9 +228,9 @@ class Fold extends Operation {
 		else {
 			this.accumulator = this.inputs[0][0]
 			for (var i = 1; i < this.inputs[0].length; ++i) {
-				console.log("  >>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
 				this.next = this.inputs[0][i]
-				sux.refreshEnd = this
+				console.log("  >>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
+				sux.refreshEnd.push(this)
 				this.inputOps[1].refresh()
 				this.accumulator = this.inputs[1]	
 			}
@@ -185,7 +251,14 @@ sux.appendOnesToList = function(list, ones) {
 sux.listToOnes = function(list) {
 	result = []
 	if(list == null) return result
-
+	if(typeof(list) == 'number')
+	{
+		for (var i = 0; i < list; ++i)
+		{
+			result.push(1)
+		}
+		return result
+	}
 	for(var i = 0; i < list.length; ++i) {
 		if(typeof(list[i]) == 'number') {
 			sux.appendOnesToList(result, list[i])
@@ -254,8 +327,9 @@ class Ones extends Operation {
 		this.name = 'ones'+(node++)
 	}
 	execute() {
-		//console.log(" ## EXEC ones")
+		//
 		this.result = sux.listToOnes(this.inputs[0])
+		console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
@@ -269,11 +343,13 @@ class Suc extends Operation {
 	execute() {
 		//console.log(" ## EXEC suc")
 		this.result = sux.suc(this.inputs[0])
-		console.log(" EXEC " + this.name + "  input: " + this.inputs[0] + " result= " + this.result)
+		//console.log(" EXEC " + this.name + "  input: " + this.inputs[0] + " result= " + this.result)
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
 }
+
+
 
 sux.interpret = function(input, code) {
 
@@ -282,8 +358,9 @@ sux.interpret = function(input, code) {
 
 	const len = code.length
 	var i = 0
+	var shit = true
 	while(i<len) {
-		//console.log(" parsing : " + code[i] + " current program: " + sux.currentProgram.name)
+		//console.log("          ////////////////////// parsing : " + code[i] + " current program: " + sux.currentProgram.name + ", i: " + i)
 		if(code[i] == 's') {
 			var suc = new Suc(sux.currentProgram)
 			sux.currentProgram.assignInput(suc)
@@ -308,6 +385,9 @@ sux.interpret = function(input, code) {
 			//console.log("     >> next op after comma : " + sux.currentProgram.name)
 		}
 		else if (code[i] == '.') {
+			
+			//console.log( "   ------------------   about to close :  " + sux.currentProgram.name)
+			//wasteTime();
 			sux.currentProgram.close()
 		}
 		else if (code[i] == ']') {
@@ -321,7 +401,8 @@ sux.interpret = function(input, code) {
 			var accum = new Accumulator(sux.currentProgram)
 			sux.currentProgram.assignInput(accum)
 			sux.currentProgram = accum
-			sux.currentProgram.close() // finishes immediately				
+			if(shit) sux.currentProgram.close() // finishes immediately				
+			shit = false
 		}
 		else if (code[i] == '2') {
 			var next = new Next(sux.currentProgram)
@@ -335,6 +416,7 @@ sux.interpret = function(input, code) {
 			sux.currentProgram = fold
 		}
 		++i
+	
 	}
 	if(sux.currentProgram.status == 'open')
 	{
@@ -348,8 +430,9 @@ sux.interpret = function(input, code) {
 //sux.interpret("", "s[ss,[sss,[ss,sssssssss]],ssss]")
 //sux.interpret("", "osss")
 
+sux.interpret("", "f[ss,sss,ssss],f[s,ss,sss],1")
 //sux.interpret("", "f[sss,ssss,sssss],f[1,o2],s1.....")
-sux.interpret("", "f[ssss,osss],s1")
+//sux.interpret("", "f[ss,sss,ssss],s1.......")
 
 //console.log(sux.suc([1]))
 
