@@ -27,7 +27,8 @@ class Stack {
 sux.currentProgram = null
 sux.lastClosedProgram = null
 sux.refreshEnd = new Stack()
-sux.currentFold = null
+sux.currentFold = new Stack() // null // <- this must be a Stack also!!
+sux.in = false
 
 var node = 0
 
@@ -62,8 +63,9 @@ class Operation {
 	}	
 	assignInput(op) {
 		//console.log(this.name + " <- " + op.name + " @ input: "+this.inputOps.length)
+		//if(this.name.startsWith('fold') && this.inputOps.length > 0) sux.currentFold = this
 		this.inputOps.push(op)
-		if(this.name.startsWith('fold')) sux.currentFold = this
+		
 		this.inputs.push(false)
 		this.nInputs = this.nInputs + 1
 	}
@@ -73,7 +75,7 @@ class Operation {
 	
 	notifyResult(op) {
 		IND++
-		if(IND==40) process.exit(0)
+		if(IND==160) process.exit(0)
 		for (var i = 0; i < this.inputOps.length; ++i) {
 			if(this.inputOps[i] == op) {
 				//console.log( "   >>> updating input " + i + " with " + op.result)
@@ -82,15 +84,15 @@ class Operation {
 			}
 		}
 		var rn = sux.refreshEnd.peek() == null ? "(null)" : sux.refreshEnd.peek().name
-		console.log(" >>>>>>>>>>>>>>>> operation  " + this.name + " received result " + op.result + " from " + op.name + "(refreshend="+rn+")")
+		//console.log(" >>>>>>>>>>>>>>>> operation  " + this.name + " received result " + op.result + " from " + op.name + "(refreshend="+rn+")")
 		if(sux.refreshEnd.peek() != null || (this.inputs.length == this.nFixedInputs)) {
 			if(this != sux.refreshEnd.peek()) {
 				//console.log("  >>> executing on notify")
 				this.execute()
 			}
 			else {
-				console.log("  >>> notify exec prevcented on " + this.name)
-				sux.refreshEnd.pop()
+				//console.log("  >>> notify exec prevcented on " + this.name)
+				//sux.refreshEnd.pop()
 			}
 		}
 		else {
@@ -102,7 +104,7 @@ class Operation {
 	
 	}
 	refresh() {
-		console.log ("   $$$$$$ refreshing " + this.name + " with input:   " + this.inputOps.length)
+		//console.log ("   $$$$$$ refreshing " + this.name + " with input:   " + this.inputOps.length)
 		for(var i = 0; i < this.inputOps.length; ++i) {
 			this.inputOps[i].status = 'open'
 			this.inputOps[i].refresh()
@@ -111,20 +113,14 @@ class Operation {
 		//this.execute()
 	}
 	close() {
-		if(this.name == 'Accum21') {
-			//console.log("  ............ starting close Accum21")
-			//wasteTime()
-
-		}
+		
 		if(this.status == 'open') {
-			if(this.name == 'Accum21') {
-				//console.log("  ............ status was open, so we close and execute...")
-				//wasteTime()
-	
-			}
 			
-			//console.log("  ########## executing and closing " + this.name)
+			//console.log("  ########## closing " + this.name)
 			this.status = 'closed'
+			if(this.name.startsWith('fold')) { sux.currentFold.pop()
+				//console.log("   popping currentFold, currentFold is now " + sux.currentFold.peek())
+			}
 			this.execute()
 		}
 	}
@@ -134,12 +130,12 @@ class Accumulator extends Operation {
 	constructor(parent) {
 		super(parent)
 		this.name = 'Accum'+(node++)
-		this.foldOp = sux.currentFold
-		//console.log("Creating accum ~ fold: " + this.foldOp.name)
+		this.foldOp = sux.currentFold.peek()
+		//console.log("Creating "+this.name+" ~ fold: " + this.foldOp.name)
 	}
 	execute() {
 		this.result = this.foldOp.accumulator
-		//console.log("  EXEC "+ this.name + ": " + JSON.stringify(this.result) + ", notifying parent: " + this.parent.name)
+		//console.log("  EXEC "+ this.name + ": " + JSON.stringify(this.result) + ", foldOp: " + this.foldOp.name+ " notifying parent: " + this.parent.name)
 		if(this.name == 'Accum21') {
 			
 			//wasteTime()
@@ -153,7 +149,7 @@ class Next extends Operation {
 	constructor(parent) {
 		super(parent)
 		this.name = 'Next'+(node++)		
-		this.foldOp = sux.currentFold
+		this.foldOp = sux.currentFold.peek()
 	}
 	execute() {
 		this.result = this.foldOp.next
@@ -196,6 +192,16 @@ class List extends Operation {
 	}
 }
 
+class Constant extends Operation {
+	constructor(parent, value) {
+		super(parent)
+		this.result = value
+	}	
+	execute() {
+		this.parent.notifyResult(this)
+	}
+}
+
 class Program extends Operation {
 	constructor(parent) {
 		super(parent)
@@ -207,6 +213,7 @@ class Program extends Operation {
 		this.result = this.inputs[0]
 		console.log(this.result) // DO NOT COMMENT THIS!!!!!
 		this.status = 'close'
+		process.exit(0)
 	}
 }
 
@@ -220,7 +227,8 @@ class Fold extends Operation {
 		this.nFixedInputs = 2
 	}
 	execute() {
-		console.log("executing "+ this.name + " with inputs[0]: " + this.inputs[0])
+		//console.log("executing "+ this.name + " with inputs[0]: " + this.inputs[0])
+		
 		// we have inputs[0] (list) and inputs[1] (function to evaluate)
 		if(typeof(this.inputs[0]) == 'number' || this.inputs[0].length < 2) {
 			this.result = this.inputs[0]
@@ -229,14 +237,17 @@ class Fold extends Operation {
 			this.accumulator = this.inputs[0][0]
 			for (var i = 1; i < this.inputs[0].length; ++i) {
 				this.next = this.inputs[0][i]
-				console.log("  >>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
+				//console.log("  >>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
 				sux.refreshEnd.push(this)
 				this.inputOps[1].refresh()
+				sux.refreshEnd.pop()
+				
 				this.accumulator = this.inputs[1]	
 			}
 		}
 		this.result = this.accumulator
 		this.status = 'close'
+		//console.log("executing "+ this.name + " finished")
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
@@ -316,7 +327,7 @@ sux.climbUpToNextOperationWithArguments = function() {
 		sux.currentProgram = sux.currentProgram.parent
 	}
 //	console.log("       && up operation fetched " + sux.currentProgram.name + " with nFixedInputs : " + sux.currentProgram.nFixedInputs)
-	if(sux.currentProgram.name == 'fold') sux.currentFold = sux.currentProgram
+	//if(sux.currentProgram.name == 'fold') sux.currentFold.push(sux.currentProgram)
 	return sux.currentProgram
 
 }
@@ -329,7 +340,7 @@ class Ones extends Operation {
 	execute() {
 		//
 		this.result = sux.listToOnes(this.inputs[0])
-		console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
+		//console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
@@ -355,10 +366,11 @@ sux.interpret = function(input, code) {
 
 	var program = new Program()
 	sux.currentProgram = program
+	sux.in = eval(input)
 
 	const len = code.length
 	var i = 0
-	var shit = true
+
 	while(i<len) {
 		//console.log("          ////////////////////// parsing : " + code[i] + " current program: " + sux.currentProgram.name + ", i: " + i)
 		if(code[i] == 's') {
@@ -381,6 +393,7 @@ sux.interpret = function(input, code) {
 			sux.currentProgram.close()
 			//console.log("climbing from " + sux.currentProgram.name + " to ... ")
 			sux.currentProgram = sux.climbUpToNextOperationWithArguments()
+			if(sux.currentProgram.name.startsWith('fold')) sux.currentFold.push(sux.currentProgram)
 			//console.log("  ... " + sux.currentProgram.name )
 			//console.log("     >> next op after comma : " + sux.currentProgram.name)
 		}
@@ -401,14 +414,21 @@ sux.interpret = function(input, code) {
 			var accum = new Accumulator(sux.currentProgram)
 			sux.currentProgram.assignInput(accum)
 			sux.currentProgram = accum
-			if(shit) sux.currentProgram.close() // finishes immediately				
-			shit = false
+			sux.currentProgram.close() // finishes immediately				
+
 		}
 		else if (code[i] == '2') {
 			var next = new Next(sux.currentProgram)
 			sux.currentProgram.assignInput(next)
 			sux.currentProgram = next
 			sux.currentProgram.close() // finishes immediately
+		}
+		else if ((code[i] == 'i') && (code[i+1]=='n')) {
+			var constant = new Constant(sux.currentProgram, sux.in)
+			sux.currentProgram.assignInput(constant)
+			sux.currentProgram = constant
+			sux.currentProgram.close() // finishes immediately	
+			++i
 		}
 		else if (code[i] == 'f') {
 			var fold = new Fold(sux.currentProgram)
@@ -430,8 +450,9 @@ sux.interpret = function(input, code) {
 //sux.interpret("", "s[ss,[sss,[ss,sssssssss]],ssss]")
 //sux.interpret("", "osss")
 
-sux.interpret("", "f[ss,sss,ssss],f[s,ss,sss],1")
-//sux.interpret("", "f[sss,ssss,sssss],f[1,o2],s1.....")
+//sux.interpret("", "f[ss,sss,f[ss,ss],1],f[1,o2],s1")
+
+sux.interpret("[3,5]", "fin,f[1,o2],s1")
 //sux.interpret("", "f[ss,sss,ssss],s1.......")
 
 //console.log(sux.suc([1]))
