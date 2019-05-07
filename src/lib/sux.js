@@ -29,6 +29,7 @@ sux.lastClosedProgram = null
 sux.refreshEnd = new Stack()
 sux.currentFold = new Stack() // null // <- this must be a Stack also!!
 sux.in = false
+sux.result = false
 
 var node = 0
 
@@ -211,9 +212,10 @@ class Program extends Operation {
 	execute() {
 		//console.log("  ## Exec program")
 		this.result = this.inputs[0]
-		console.log(this.result) // DO NOT COMMENT THIS!!!!!
+		//console.log("finishing: " + this.result) // DO NOT COMMENT THIS!!!!!
+		sux.result = this.result
 		this.status = 'close'
-		process.exit(0)
+		//process.exit(0)
 	}
 }
 
@@ -367,6 +369,15 @@ sux.interpret = function(input, code) {
 	var program = new Program()
 	sux.currentProgram = program
 	sux.in = eval(input)
+	sux.lastClosedProgram = null
+	sux.refreshEnd = new Stack()
+	sux.currentFold = new Stack() // null // <- this must be a Stack also!!
+	sux.result = false
+
+	var node = 0
+
+	IND = 0
+
 
 	const len = code.length
 	var i = 0
@@ -436,6 +447,9 @@ sux.interpret = function(input, code) {
 			sux.currentProgram = fold
 		}
 		++i
+		if(sux.result != false) {
+			return sux.result
+		}
 	
 	}
 	if(sux.currentProgram.status == 'open')
@@ -443,7 +457,8 @@ sux.interpret = function(input, code) {
 		sux.currentProgram.close()
 	}	
 	program.close()
-
+	if(sux.result != false) return sux.result
+	
 }
 
 //sux.interpret("", "sosss....")
@@ -452,9 +467,17 @@ sux.interpret = function(input, code) {
 
 //sux.interpret("", "f[ss,sss,f[ss,ss],1],f[1,o2],s1")
 
-sux.interpret("[3,5]", "fin,f[1,o2],s1")
+//console.log(sux.interpret("[3,5]", "fin,f[1,o2],s1"))
+//console.log(sux.interpret("3", "sin"))
 //sux.interpret("", "f[ss,sss,ssss],s1.......")
-
 //console.log(sux.suc([1]))
+sux.shit = function()
+{
+	return "shit"
+}
 
-module.exports = sux
+function shitFunction() {
+	return "shit"
+}
+
+//module.exports = sux

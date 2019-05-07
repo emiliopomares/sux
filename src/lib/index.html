@@ -1,0 +1,18 @@
+<DOCTYPE html>
+<html>
+	<head>
+		<script type="text/javascript" src="https://www.digitaldreamsinteractive.com/sux.js"></script>
+	</head>
+	Input:<input type="text" name="input" id="input"><br>
+	Code: <input type="text" name="code" id="code"><br>
+	Output: <input type="text" name="output" id="output"><br>
+	<button type="button" onclick="executeCode();">Execute</button>
+</html>
+
+<script>
+function executeCode() {
+	var inp = document.getElementById("input").value
+	var cod = document.getElementById("code").value
+	document.getElementById("output").value = sux.interpret(inp, cod)
+}
+</script>
