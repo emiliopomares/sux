@@ -76,7 +76,10 @@ class Operation {
 	}
 	
 	notifyResult(op) {
-		console.log("      ---- " + this.name + " is being notified of result from " + op.name)
+
+		if(this == sux.refreshEnd.peek()) return
+
+		console.log("      ---- " + this.name + " (fixInp: "+this.nFixedInputs+"/closedInps: "+this.closedInputs+") is being notified of result from " + op.name + " with refreshEnd: " + sux.refreshEnd.peek())
 		IND++
 		if(IND==16000) {
 			console.log("shit! stuck!")
@@ -88,6 +91,7 @@ class Operation {
 				this.inputs[i] = op.result
 				this.closedInputs++
 				if(this.closedInputs == this.nFixedInputs) {
+					console.log("    -----  all inputs satified on " + this.name + ", closing...")
 					this.close()
 					//sux.currentProgram = this
 					//console.log("    >>>>> Current program set to " + this.name + " becuase of closure")
@@ -99,7 +103,7 @@ class Operation {
 		var rn = sux.refreshEnd.peek() == null ? "(null)" : sux.refreshEnd.peek().name
 		//console.log(" >>>>>>>>>>>>>>>> operation  " + this.name + " received result " + op.result + " from " + op.name + "(refreshend="+rn+")")
 			
-		
+		/*	
 		if(sux.refreshEnd.peek() != null && (this.inputs.length == this.nFixedInputs)) {
 			if(this != sux.refreshEnd.peek()) {
 				console.log("  >>> executing "+this.name+" on notify")
@@ -107,13 +111,12 @@ class Operation {
 			}
 			else {
 				//console.log("  >>> notify exec prevcented on " + this.name)
-				//sux.refreshEnd.pop()
 			}
 		}
 		else {
-			//console.log( "  >>> execute on " + this.name + " prevented")
+			console.log( "  >>> execute on " + this.name + " prevented")
 		}
-		
+		*/	
 
 	}
 	execute() {
@@ -121,12 +124,14 @@ class Operation {
 	}
 	refresh() {
 		//console.log ("   $$$$$$ refreshing " + this.name + " with input:   " + this.inputOps.length)
+		this.nFixedInputs = this.inputOps.length
+		this.closedInputs = 0
+		this.status = 'open'
 		for(var i = 0; i < this.inputOps.length; ++i) {
-			this.inputOps[i].status = 'open'
 			this.inputOps[i].refresh()
 		}
-		//if(this.inputOps.length == 0) this.execute()
-		this.execute()
+		if(this.inputOps.length == 0) this.execute()
+		//this.execute()<-ésta si que no pued3e ser, porque si no se ejecuta miuchas veces
 	}
 	close() {
 		
@@ -137,7 +142,7 @@ class Operation {
 			this.execute()
 			this.status = 'closed'
 			if(this.name.startsWith('fold')) { sux.currentFold.pop()
-				//console.log("   popping currentFold, currentFold is now " + sux.currentFold.peek())
+				console.log("   popping currentFold, currentFold is now " + sux.currentFold.peek())
 			}
 		}
 	}
@@ -188,7 +193,7 @@ class List extends Operation {
 				res.push(this.inputs[i][0])
 			}
 			else {
-				if(this.inputOps[i].name.startsWith('ones')) {
+				if(this.inputOps[i].name.startsWith('ones') || this.inputOps[i].name.startsWith('tail')) {
 					for(var j = 0; j < this.inputs[i].length; ++j) {
 						res.push(this.inputs[i][j])
 					}
@@ -273,6 +278,7 @@ class Fold extends Operation {
 			for (var i = 1; i < this.inputs[0].length; ++i) {
 				this.next = this.inputs[0][i]
 				console.log("                        >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> iter: " + i + "    ac: " + this.accumulator + ", next: " + this.next)
+				console.log("                        >>>>>> refreshEnd : "+ this.name)
 				sux.refreshEnd.push(this)
 				console.log("                        >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> refreshing " + this.inputOps[1].name)
 				this.inputOps[1].refresh()
@@ -378,6 +384,9 @@ sux.climbUpToNextOperationWithArguments = function() {
 	while(
 		(sux.currentProgram.nFixedInputs == 1)
 
+		||
+
+		(sux.currentProgram.name.startsWith("fold") && sux.currentProgram.inputOps.length == 2)
 		//&&
 
 		//(sux.currentProgram.inputs.length >=  sux.currentProgram.nFixedInputs)
@@ -399,7 +408,7 @@ class Ones extends Operation {
 	execute() {
 		//
 		this.result = sux.listToOnes(this.inputs[0])
-		//console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
+		console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
 		this.parent.notifyResult(this)
 		this.status = 'close'
 	}
@@ -462,8 +471,8 @@ sux.interpret = function(input, code) {
 			sux.currentProgram.close()
 			//console.log("climbing from " + sux.currentProgram.name + " to ... ")
 			sux.currentProgram = sux.climbUpToNextOperationWithArguments()
-			if(sux.currentProgram.name.startsWith('fold')) sux.currentFold.push(sux.currentProgram)
-			console.log("  setting current program to:  " + sux.currentProgram.name )
+			//if(sux.currentProgram.name.startsWith('fold')) sux.currentFold.push(sux.currentProgram)
+			console.log("  setting current program to:  " + sux.currentProgram.name + " currentFold: " + sux.currentFold.peek())
 			//console.log("     >> next op after comma : " + sux.currentProgram.name)
 		}
 		else if (code[i] == '.') {
@@ -506,6 +515,7 @@ sux.interpret = function(input, code) {
 		}
 		else if (code[i] == 'f') {
 			var fold = new Fold(sux.currentProgram)
+			sux.currentFold.push(fold)
 			sux.currentProgram.assignInput(fold)
 			sux.currentProgram = fold
 		}
@@ -522,9 +532,14 @@ sux.interpret = function(input, code) {
 	console.log("")
 	console.log("All symbols consumed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	console.log("")
-	while(sux.currentProgram != program) {
+//	while(sux.currentProgram != program) {
+//		cp = sux.currentProgram
+		console.log("Closing current program: " + sux.currentProgram.name)
 		sux.currentProgram.close()
-	}
+//		if(cp == sux.currentProgram) {
+//			sux.currentProgram = sux.currentProgram.parent
+//		}
+//	}
 	console.log("attempting to close root program")
 	program.execute()
 	console.log(" >> eof closure...")
@@ -546,13 +561,27 @@ sux.interpret = function(input, code) {
 //console.log(sux.interpret("", "f[f[ss,ss],1,oss],s1"))
 //console.log(sux.interpret("", "f[ss,sss,f[ss,ss],1],f[1,o2],s1...."))
 //console.log(sux.interpret("", "f[sss,f[ss,ss],1],[1,2]"))
-console.log(sux.interpret("", "f[sss,ss],f[1,o2],s1"))
+//console.log(sux.interpret("", "f[sss,ss],f[1,o2],s1"))
 //console.log(sux.interpret("[3,5]", "fin,f[1,o2],s1"))
 //console.log(sux.interpret("3", "sin"))
 //sux.interpret("", "f[ss,sss,ssss],s1.......")
 //console.log(sux.suc([1]))
-
+//console.log(sux.interpret("", "f[ss,ss],-o2"))
 //console.log(sux.interpret("", "-[sss,sssss]"))
+//console.log(sux.interpret("", "f[ssss,sss],f[f[1,o1],s1,o2],s1"))
+//console.log(sux.interpret("3", "f[[oin],[-oin]],s1"))
+//console.log(sux.interpret("3", "soin"))
+//console.log(sux.interpret("", "f[[ossss],-ossss],s1"))
+//console.log(sux.interpret("3", "-oin"))
+//console.log(sux.interpret("", "ff[sss,ss],[o1,o2],s1"))
+//console.log(sux.interpret("", "f[s,s,s,s,s],s1"))
+//console.log(sux.interpret("", "osss"))
+//console.log(sux.interpret("", "-oss"))
+//console.log(sux.interpret("", "f[[osss],-oss],s1"))
+//console.log(sux.interpret("", "f[ssss,ss,sss],[o1,o2]"))
+//console.log(sux.interpret("5", "fff[[oin],-oin],s1,[o1,o2],s1"))
+//console.log(sux.interpret("0", "of[s,oin],s"))
+console.log(sux.interpret("", "[]"))
 
 sux.shit = function()
 {
@@ -563,4 +592,4 @@ function shitFunction() {
 	return "shit"
 }
 
-//module.exports = sux
+module.exports = sux
