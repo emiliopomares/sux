@@ -27,7 +27,7 @@ class Stack {
 sux.currentProgram = null
 sux.lastClosedProgram = null
 sux.refreshEnd = new Stack()
-sux.currentFold = new Stack() // null // <- this must be a Stack also!!
+sux.currentFold = new Stack()
 sux.in = false
 sux.result = false
 
@@ -47,6 +47,7 @@ var IND = 0
 
 
 class Operation {
+
 	constructor(parent) {
 		this.status = 'open'
 		
@@ -63,25 +64,24 @@ class Operation {
 		this.nFixedInputs = 1
 		this.name = ''
 	}	
+
 	assignInput(op) {
 		//console.log(this.name + " <- " + op.name + " @ input: "+this.inputOps.length)
 		//if(this.name.startsWith('fold') && this.inputOps.length > 0) sux.currentFold = this
 		this.inputOps.push(op)
-		
 		this.inputs.push(false)
 		this.nInputs = this.nInputs + 1
 	}
+
 	assignParent(parent) {
 		this.parent = parent
 	}
 	
 	notifyResult(op) {
-
 		if(this == sux.refreshEnd.peek()) return
-
 		console.log("      ---- " + this.name + " (fixInp: "+this.nFixedInputs+"/closedInps: "+this.closedInputs+") is being notified of result from " + op.name + " with refreshEnd: " + sux.refreshEnd.peek())
 		IND++
-		if(IND==16000) {
+		if(IND==1600000) {
 			console.log("shit! stuck!")
 			process.exit(0)
 		}
@@ -117,11 +117,12 @@ class Operation {
 			console.log( "  >>> execute on " + this.name + " prevented")
 		}
 		*/	
+	}
 
-	}
 	execute() {
-	
+		// to be overriden
 	}
+
 	refresh() {
 		//console.log ("   $$$$$$ refreshing " + this.name + " with input:   " + this.inputOps.length)
 		this.nFixedInputs = this.inputOps.length
@@ -131,12 +132,10 @@ class Operation {
 			this.inputOps[i].refresh()
 		}
 		if(this.inputOps.length == 0) this.execute()
-		//this.execute()<-ésta si que no pued3e ser, porque si no se ejecuta miuchas veces
 	}
+
 	close() {
-		
 		if(this.status == 'open') {
-			
 			sux.currentProgram = this
 			console.log("  ########## setting current program to : " + this.name)
 			this.execute()
@@ -146,6 +145,7 @@ class Operation {
 			}
 		}
 	}
+
 }
 
 class Accumulator extends Operation {
@@ -302,6 +302,34 @@ class Fold extends Operation {
 	}
 }
 
+class Ones extends Operation {
+	constructor(parent) {
+		super(parent)
+		this.name = 'ones'+(node++)
+	}
+	execute() {
+		//
+		this.result = sux.listToOnes(this.inputs[0])
+		console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
+		this.parent.notifyResult(this)
+		this.status = 'close'
+	}
+}
+
+class Suc extends Operation {
+	constructor(parent) {
+		super(parent)
+		this.name = 'suc'+(node++)
+	}
+	execute() {
+		//console.log(" ## EXEC suc")
+		this.result = sux.suc(this.inputs[0])
+		console.log(" EXEC " + this.name + "  input: " + this.inputs[0] + " result= " + this.result)
+		this.parent.notifyResult(this)
+		this.status = 'close'
+	}
+}
+
 sux.appendOnesToList = function(list, ones) {
 	for (var i = 0; i < ones; ++i) {
 		list.push(1)
@@ -407,36 +435,6 @@ sux.climbUpToNextOperationWithArguments = function() {
 	return sux.currentProgram
 
 }
-
-class Ones extends Operation {
-	constructor(parent) {
-		super(parent)
-		this.name = 'ones'+(node++)
-	}
-	execute() {
-		//
-		this.result = sux.listToOnes(this.inputs[0])
-		console.log(" ## EXEC " + this.name + " with input: "+this.inputs[0]+", result: " + this.result)
-		this.parent.notifyResult(this)
-		this.status = 'close'
-	}
-}
-
-class Suc extends Operation {
-	constructor(parent) {
-		super(parent)
-		this.name = 'suc'+(node++)
-	}
-	execute() {
-		//console.log(" ## EXEC suc")
-		this.result = sux.suc(this.inputs[0])
-		console.log(" EXEC " + this.name + "  input: " + this.inputs[0] + " result= " + this.result)
-		this.parent.notifyResult(this)
-		this.status = 'close'
-	}
-}
-
-
 
 sux.interpret = function(input, code) {
 
@@ -616,18 +614,12 @@ sux.beautify = function(item) {
 //console.log(sux.interpret("", "-oss"))
 //console.log(sux.interpret("", "f[[osss],-oss],s1"))
 //console.log(sux.interpret("", "f[ssss,ss,sss],[o1,o2]"))
-//console.log(sux.interpret("5", "fff[[oin],-oin],s1,[o1,o2],s1"))
+//console.log(sux.interpret("5", "fff[[oin],-oin],s1,[o1,o2],s1")) // multiply function (5^^2)
 //console.log(sux.interpret("0", "of[s,oin],s"))
 //console.log(sux.interpret("", "s[s,[s[],s[]]]"))
-console.log(sux.interpret("1", "f[[s,s],osin],-1")) // this should be the not function
-
-sux.shit = function()
-{
-	return "shit"
-}
-
-function shitFunction() {
-	return "shit"
-}
+//console.log(sux.interpret("1", "f[[s,s],osin],-1")) // this should be the not function
+//console.log(sux.interpret("[2,3]", "fin,1")) // this is 'head'
+//console.log(sux.interpret("[2,3]", "-in")) // this is 'tails'
+console.log(sux.interpret("[4,6]", "fff[[ofin,1],-o-in],s1,[o1,o2],s1")) // multiply function in.1 * in.2
 
 module.exports = sux
