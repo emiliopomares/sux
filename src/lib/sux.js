@@ -207,7 +207,13 @@ class List extends Operation {
 		//	if((r.length == 1) && typeof(r[0]) == 'number') res.push(r[0])
 		//	else res.push(r)
 		//})
+		//if(res == []) {
+		//	this.result = 0
+		//}
+		//else {
+		console.dir(res)
 		this.result = res
+		//}
 		//console.log("  >> List finish op, result : " + res)
 		this.parent.notifyResult(this)
 		this.status = 'close'
@@ -373,6 +379,8 @@ sux.climbUpToNextOperationWithArguments = function() {
 
 	//console.log( "  called climb up to next with current = " + sux.currentProgram.name)
 
+	if(sux.currentProgram.parent == null) return sux.currentProgram
+	
 	sux.currentProgram = sux.currentProgram.parent
 	
 	if(sux.currentProgram.name == 'program') return sux.currentProgram
@@ -439,6 +447,7 @@ sux.interpret = function(input, code) {
 	sux.refreshEnd = new Stack()
 	sux.currentFold = new Stack() // null // <- this must be a Stack also!!
 	sux.result = false
+	var LastList = null
 
 	var node = 0
 
@@ -465,6 +474,7 @@ sux.interpret = function(input, code) {
 			var list = new List(sux.currentProgram)
 			sux.currentProgram.assignInput(list)
 			sux.currentProgram = list
+			LastList = list
 		}
 		else if (code[i] == ',') {
 			//console.log(" >> comma, LOL")
@@ -482,11 +492,17 @@ sux.interpret = function(input, code) {
 			sux.currentProgram.close()
 		}
 		else if (code[i] == ']') {
+			var prevCurrentProgram = sux.currentProgram
 			sux.currentProgram.close()
 			//console.log("climbing from " + sux.currentProgram.name + " to ... ")
-                        sux.currentProgram = sux.climbUpToNextOperationWithArguments()
-                        console.log("  ... Finishing list, setting current to: " + sux.currentProgram.name )
-			sux.currentProgram.close()
+			if(LastList != prevCurrentProgram) {
+                sux.currentProgram = sux.climbUpToNextOperationWithArguments()
+                console.log("  ... Finishing list, setting current to: " + sux.currentProgram.name )
+				sux.currentProgram.close()
+			}
+			else {
+				console.log("   ... closing [] list")
+			}
 		}
 		else if (code[i] == '1') {
 			var accum = new Accumulator(sux.currentProgram)
@@ -507,6 +523,18 @@ sux.interpret = function(input, code) {
 			sux.currentProgram = constant
 			sux.currentProgram.close() // finishes immediately	
 			++i
+		}
+		else if(code[i]==' ') {
+			// nothing here
+		}
+		else if(code[i]=='\n') {
+			// nothing here
+		}
+		else if(code[i]=='\t') {
+			// nothing here
+		}
+		else if(code[i]=='\r') {
+			// nothing here
 		}
 		else if (code[i] == '-') {
 			var tail = new Tail(sux.currentProgram)
@@ -547,8 +575,17 @@ sux.interpret = function(input, code) {
         console.log("")
         console.log("")
         console.log("")	
-	if(sux.result != false) return sux.result
+	return sux.beautify(sux.result)
 	
+}
+
+sux.beautify = function(item) {
+	if(item == undefined) return [0]
+	if(item == []) return [0]
+	if(item == null) return [0]
+	if(item == false) return [0]
+	if(typeof(item) == 'number') return [item]
+	return item
 }
 
 //sux.interpret("", "sosss....")
@@ -581,7 +618,8 @@ sux.interpret = function(input, code) {
 //console.log(sux.interpret("", "f[ssss,ss,sss],[o1,o2]"))
 //console.log(sux.interpret("5", "fff[[oin],-oin],s1,[o1,o2],s1"))
 //console.log(sux.interpret("0", "of[s,oin],s"))
-console.log(sux.interpret("", "[]"))
+//console.log(sux.interpret("", "s[s,[s[],s[]]]"))
+console.log(sux.interpret("1", "f[[s,s],osin],-1")) // this should be the not function
 
 sux.shit = function()
 {
